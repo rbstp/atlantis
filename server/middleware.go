@@ -28,6 +28,7 @@ func NewRequestLogger(s *Server) *RequestLogger {
 		s.WebAuthentication,
 		s.WebUsername,
 		s.WebPassword,
+		s.OIDCHandler,
 	}
 }
 
@@ -38,6 +39,7 @@ type RequestLogger struct {
 	WebAuthentication bool
 	WebUsername       string
 	WebPassword       string
+	OIDCHandler       *OIDCHandler
 }
 
 // ServeHTTP implements the middleware function. It logs all requests at DEBUG level.
@@ -48,8 +50,15 @@ func (l *RequestLogger) ServeHTTP(rw http.ResponseWriter, r *http.Request, next 
 		r.URL.Path == "/events" ||
 		r.URL.Path == "/healthz" ||
 		r.URL.Path == "/status" ||
-		strings.HasPrefix(r.URL.Path, "/api/") {
+		strings.HasPrefix(r.URL.Path, "/api/") ||
+		strings.HasPrefix(r.URL.Path, "/auth/oidc/") {
 		allowed = true
+	} else if l.OIDCHandler != nil {
+		// OIDC authentication: check for a valid session cookie.
+		if l.OIDCHandler.IsAuthenticated(r) {
+			l.logger.Debug("[OIDC] authenticated request: >> url: %s", r.URL.RequestURI())
+			allowed = true
+		}
 	} else {
 		user, pass, ok := r.BasicAuth()
 		if ok {
@@ -64,8 +73,13 @@ func (l *RequestLogger) ServeHTTP(rw http.ResponseWriter, r *http.Request, next 
 		}
 	}
 	if !allowed {
-		rw.Header().Set("WWW-Authenticate", `Basic realm="restricted", charset="UTF-8"`)
-		http.Error(rw, "Unauthorized", http.StatusUnauthorized)
+		if l.OIDCHandler != nil {
+			// Redirect to OIDC login page instead of showing basic auth dialog.
+			http.Redirect(rw, r, "/auth/oidc/login", http.StatusFound)
+		} else {
+			rw.Header().Set("WWW-Authenticate", `Basic realm="restricted", charset="UTF-8"`)
+			http.Error(rw, "Unauthorized", http.StatusUnauthorized)
+		}
 	} else {
 		next(rw, r)
 	}

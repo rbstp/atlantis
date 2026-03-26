@@ -1521,6 +1521,66 @@ ATLANTIS_WEB_BASIC_AUTH=true
 
 Enable Basic Authentication on the Atlantis web service.
 
+### `--web-oidc`
+
+```bash
+atlantis server --web-oidc
+# or
+ATLANTIS_WEB_OIDC=true
+```
+
+Enable OIDC authentication (e.g. Entra ID / Azure AD) for the Atlantis web UI. Requires `--web-oidc-client-id`, `--web-oidc-client-secret`, and `--web-oidc-issuer-url` to be set. Cannot be used together with `--web-basic-auth`.
+
+### `--web-oidc-client-id`
+
+```bash
+atlantis server --web-oidc-client-id="your-client-id"
+# or
+ATLANTIS_WEB_OIDC_CLIENT_ID="your-client-id"
+```
+
+The OIDC client ID (application ID) for Entra ID / Azure AD authentication. Required when `--web-oidc` is enabled.
+
+### `--web-oidc-client-secret`
+
+```bash
+atlantis server --web-oidc-client-secret="your-client-secret"
+# or
+ATLANTIS_WEB_OIDC_CLIENT_SECRET="your-client-secret"
+```
+
+The OIDC client secret for Entra ID / Azure AD authentication. Required when `--web-oidc` is enabled. Should be specified via the `ATLANTIS_WEB_OIDC_CLIENT_SECRET` environment variable for security.
+
+### `--web-oidc-issuer-url`
+
+```bash
+atlantis server --web-oidc-issuer-url="https://login.microsoftonline.com/{tenant-id}/v2.0"
+# or
+ATLANTIS_WEB_OIDC_ISSUER_URL="https://login.microsoftonline.com/{tenant-id}/v2.0"
+```
+
+The OIDC issuer URL. For Entra ID (Azure AD), this is typically `https://login.microsoftonline.com/{tenant-id}/v2.0`. Required when `--web-oidc` is enabled.
+
+### `--web-oidc-redirect-url`
+
+```bash
+atlantis server --web-oidc-redirect-url="https://atlantis.example.com/auth/oidc/callback"
+# or
+ATLANTIS_WEB_OIDC_REDIRECT_URL="https://atlantis.example.com/auth/oidc/callback"
+```
+
+The OIDC redirect/callback URL. If not set, defaults to `{atlantis-url}/auth/oidc/callback`.
+
+### `--web-oidc-scopes`
+
+```bash
+atlantis server --web-oidc-scopes="openid,profile,email"
+# or
+ATLANTIS_WEB_OIDC_SCOPES="openid,profile,email"
+```
+
+Comma-separated list of OIDC scopes to request. Defaults to `openid,profile,email`.
+
 ### `--web-password` <Badge text="v0.1.0+" type="info"/>
 
 ```bash

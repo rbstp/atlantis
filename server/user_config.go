@@ -134,6 +134,12 @@ type UserConfig struct {
 	WebBasicAuth               bool            `mapstructure:"web-basic-auth"`
 	WebUsername                string          `mapstructure:"web-username"`
 	WebPassword                string          `mapstructure:"web-password"`
+	WebOIDC                    bool            `mapstructure:"web-oidc"`
+	WebOIDCClientID            string          `mapstructure:"web-oidc-client-id"`
+	WebOIDCClientSecret        string          `mapstructure:"web-oidc-client-secret"`
+	WebOIDCIssuerURL           string          `mapstructure:"web-oidc-issuer-url"`
+	WebOIDCRedirectURL         string          `mapstructure:"web-oidc-redirect-url"`
+	WebOIDCScopes              string          `mapstructure:"web-oidc-scopes"`
 	WriteGitCreds              bool            `mapstructure:"write-git-creds"`
 	WebsocketCheckOrigin       bool            `mapstructure:"websocket-check-origin"`
 	UseTFPluginCache           bool            `mapstructure:"use-tf-plugin-cache"`

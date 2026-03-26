@@ -129,6 +129,7 @@ type Server struct {
 	WebAuthentication              bool
 	WebUsername                    string
 	WebPassword                    string
+	OIDCHandler                    *OIDCHandler
 	ProjectCmdOutputHandler        jobs.ProjectCommandOutputHandler
 	ScheduledExecutorService       *scheduled.ExecutorService
 	DisableGlobalApplyLock         bool
@@ -1013,6 +1014,36 @@ func NewServer(userConfig UserConfig, config Config) (*Server, error) {
 		GithubOrg:           userConfig.GithubOrg,
 	}
 
+	// Initialize OIDC handler if enabled.
+	var oidcHandler *OIDCHandler
+	if userConfig.WebOIDC {
+		oidcRedirectURL := userConfig.WebOIDCRedirectURL
+		if oidcRedirectURL == "" {
+			oidcRedirectURL = parsedURL.String() + "/auth/oidc/callback"
+		}
+
+		var oidcScopes []string
+		for _, s := range strings.Split(userConfig.WebOIDCScopes, ",") {
+			s = strings.TrimSpace(s)
+			if s != "" {
+				oidcScopes = append(oidcScopes, s)
+			}
+		}
+
+		oidcHandler, err = NewOIDCHandler(context.Background(), OIDCConfig{
+			Enabled:      true,
+			ClientID:     userConfig.WebOIDCClientID,
+			ClientSecret: userConfig.WebOIDCClientSecret,
+			IssuerURL:    userConfig.WebOIDCIssuerURL,
+			RedirectURL:  oidcRedirectURL,
+			Scopes:       oidcScopes,
+		}, logger)
+		if err != nil {
+			return nil, fmt.Errorf("initializing OIDC handler: %w", err)
+		}
+		logger.Info("OIDC authentication enabled with issuer: %s", userConfig.WebOIDCIssuerURL)
+	}
+
 	server := &Server{
 		AtlantisVersion:                config.AtlantisVersion,
 		AtlantisURL:                    parsedURL,
@@ -1042,9 +1073,10 @@ func NewServer(userConfig UserConfig, config Config) (*Server, error) {
 		DisableGlobalApplyLock:         userConfig.DisableGlobalApplyLock,
 		Drainer:                        drainer,
 		ProjectCmdOutputHandler:        projectCmdOutputHandler,
-		WebAuthentication:              userConfig.WebBasicAuth,
+		WebAuthentication:              userConfig.WebBasicAuth || userConfig.WebOIDC,
 		WebUsername:                    userConfig.WebUsername,
 		WebPassword:                    userConfig.WebPassword,
+		OIDCHandler:                    oidcHandler,
 		ScheduledExecutorService:       scheduledExecutorService,
 		EnableProfilingAPI:             userConfig.EnableProfilingAPI,
 		database:                       database,
@@ -1079,6 +1111,12 @@ func (s *Server) Start() error {
 		Queries(LockViewRouteIDQueryParam, fmt.Sprintf("{%s}", LockViewRouteIDQueryParam)).Name(LockViewRouteName)
 	s.Router.HandleFunc("/jobs/{job-id}", s.JobsController.GetProjectJobs).Methods("GET").Name(ProjectJobsViewRouteName)
 	s.Router.HandleFunc("/jobs/{job-id}/ws", s.JobsController.GetProjectJobsWS).Methods("GET")
+
+	// Register OIDC routes if OIDC authentication is enabled.
+	if s.OIDCHandler != nil {
+		s.Router.HandleFunc("/auth/oidc/login", s.OIDCHandler.HandleLogin).Methods("GET")
+		s.Router.HandleFunc("/auth/oidc/callback", s.OIDCHandler.HandleCallback).Methods("GET")
+	}
 
 	r, ok := s.StatsReporter.(prometheus.Reporter)
 	if ok {

@@ -162,6 +162,12 @@ const (
 	WebBasicAuthFlag                 = "web-basic-auth"
 	WebUsernameFlag                  = "web-username"
 	WebPasswordFlag                  = "web-password"
+	WebOIDCFlag                      = "web-oidc"
+	WebOIDCClientIDFlag              = "web-oidc-client-id"
+	WebOIDCClientSecretFlag          = "web-oidc-client-secret" // nolint: gosec
+	WebOIDCIssuerURLFlag             = "web-oidc-issuer-url"
+	WebOIDCRedirectURLFlag           = "web-oidc-redirect-url"
+	WebOIDCScopesFlag                = "web-oidc-scopes"
 	WebsocketCheckOrigin             = "websocket-check-origin"
 
 	// NOTE: Must manually set these as defaults in the setDefaults function.
@@ -494,6 +500,27 @@ var stringFlags = map[string]stringFlag{
 		description:  "Password used for Web Basic Authentication on Atlantis HTTP Middleware",
 		defaultValue: DefaultWebPassword,
 	},
+	WebOIDCClientIDFlag: {
+		description: "The OIDC client ID for Entra ID (Azure AD) authentication on the Atlantis web UI. " +
+			"Can also be specified via the ATLANTIS_WEB_OIDC_CLIENT_ID environment variable.",
+	},
+	WebOIDCClientSecretFlag: {
+		description: "The OIDC client secret for Entra ID (Azure AD) authentication on the Atlantis web UI. " +
+			"Can also be specified via the ATLANTIS_WEB_OIDC_CLIENT_SECRET environment variable. " +
+			"SECURITY WARNING: Should be specified via environment variable.",
+	},
+	WebOIDCIssuerURLFlag: {
+		description: "The OIDC issuer URL for Entra ID (Azure AD) authentication (e.g. https://login.microsoftonline.com/{tenant-id}/v2.0). " +
+			"Can also be specified via the ATLANTIS_WEB_OIDC_ISSUER_URL environment variable.",
+	},
+	WebOIDCRedirectURLFlag: {
+		description: "The OIDC redirect/callback URL (e.g. https://atlantis.example.com/auth/oidc/callback). " +
+			"If not set, defaults to {atlantis-url}/auth/oidc/callback.",
+	},
+	WebOIDCScopesFlag: {
+		description:  "Comma-separated list of OIDC scopes to request.",
+		defaultValue: "openid,profile,email",
+	},
 }
 
 var boolFlags = map[string]boolFlag{
@@ -637,6 +664,10 @@ var boolFlags = map[string]boolFlag{
 	WebBasicAuthFlag: {
 		description:  "Switches on or off the Basic Authentication on the HTTP Middleware interface",
 		defaultValue: DefaultWebBasicAuth,
+	},
+	WebOIDCFlag: {
+		description:  "Enable OIDC authentication (e.g. Entra ID / Azure AD) for the Atlantis web UI. Requires --web-oidc-client-id, --web-oidc-client-secret, and --web-oidc-issuer-url to be set.",
+		defaultValue: false,
 	},
 	RestrictFileList: {
 		description:  "Block plan requests from projects outside the files modified in the pull request.",
@@ -989,6 +1020,9 @@ func (s *ServerCmd) setDefaults(c *server.UserConfig, v *viper.Viper) {
 	if c.WebPassword == "" {
 		c.WebPassword = DefaultWebPassword
 	}
+	if c.WebOIDCScopes == "" {
+		c.WebOIDCScopes = "openid,profile,email"
+	}
 	if c.AutoDiscoverModeFlag == "" {
 		c.AutoDiscoverModeFlag = DefaultAutoDiscoverMode
 	}
@@ -1067,6 +1101,22 @@ func (s *ServerCmd) validate(userConfig server.UserConfig) error {
 	}
 	if parsed.Scheme != "http" && parsed.Scheme != "https" {
 		return fmt.Errorf("--%s must have http:// or https://, got %q", GiteaBaseURLFlag, userConfig.GiteaBaseURL)
+	}
+
+	// Validate OIDC configuration.
+	if userConfig.WebOIDC {
+		if userConfig.WebOIDCClientID == "" {
+			return fmt.Errorf("--%s is required when --%s is enabled", WebOIDCClientIDFlag, WebOIDCFlag)
+		}
+		if userConfig.WebOIDCClientSecret == "" {
+			return fmt.Errorf("--%s is required when --%s is enabled", WebOIDCClientSecretFlag, WebOIDCFlag)
+		}
+		if userConfig.WebOIDCIssuerURL == "" {
+			return fmt.Errorf("--%s is required when --%s is enabled", WebOIDCIssuerURLFlag, WebOIDCFlag)
+		}
+		if userConfig.WebBasicAuth {
+			return fmt.Errorf("--%s and --%s cannot be enabled at the same time", WebBasicAuthFlag, WebOIDCFlag)
+		}
 	}
 
 	if userConfig.RepoConfig != "" && userConfig.RepoConfigJSON != "" {
